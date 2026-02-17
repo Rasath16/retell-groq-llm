@@ -1,5 +1,17 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
 dist/
+build/
+venv/
+.venv/
+
+# Node (legacy)
+node_modules/
+
+# Environment
 .env
 .env.development
 .env.production
