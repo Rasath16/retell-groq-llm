@@ -10,7 +10,18 @@ from llm_groq import GroqLlmClient
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+from groq import AsyncGroq
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize Groq client on startup
+    app.state.groq_client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+    yield
+    # Cleanup on shutdown
+    await app.state.groq_client.close()
+
+app = FastAPI(lifespan=lifespan)
 
 retell_client = None
 if os.getenv("RETELL_API_KEY"):
@@ -59,7 +70,8 @@ async def websocket_endpoint(ws: WebSocket, call_id: str):
     await ws.accept()
     logger.info("WebSocket connected for call: %s", call_id)
 
-    llm_client = GroqLlmClient()
+    # Use the shared Groq client from app state
+    llm_client = GroqLlmClient(client=app.state.groq_client)
 
     # Send config event to Retell
     config_event = {

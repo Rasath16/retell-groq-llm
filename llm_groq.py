@@ -2,7 +2,7 @@ import json
 import os
 import logging
 
-from groq import Groq
+from groq import AsyncGroq
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
@@ -76,8 +76,8 @@ Core Behavior:
 
 
 class GroqLlmClient:
-    def __init__(self):
-        self.groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    def __init__(self, client: AsyncGroq):
+        self.client = client
 
     async def begin_message(self, ws: WebSocket):
         """Send the first message to start the conversation (agent speaks first)."""
@@ -124,16 +124,16 @@ class GroqLlmClient:
         response_id = request["response_id"]
 
         try:
-            stream = self.groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            stream = await self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",
                 messages=messages,
                 stream=True,
-                temperature=0.6,
-                max_tokens=200,
+                temperature=0.2,
+                max_tokens=100,
                 top_p=0.9,
             )
 
-            for chunk in stream:
+            async for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if not delta or not delta.content:
                     continue
@@ -159,13 +159,7 @@ class GroqLlmClient:
             await ws.send_json(final_response)
 
         except Exception as e:
-            logger.error("Error streaming from Groq: %s", e)
-            # Send an error recovery message
-            error_response = {
-                "response_type": "response",
-                "response_id": response_id,
-                "content": "Sorry, I had a little hiccup there. Could you repeat that for me?",
-                "content_complete": True,
-                "end_call": False,
-            }
-            await ws.send_json(error_response)
+            logger.error("Error streaming from Groq: %s", e, exc_info=True)
+            # We don't send an error response to the user to avoid breaking character,
+            # but we log the full traceback for debugging.
+
